@@ -22,10 +22,26 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stm32f7508_discovery_lcd.h"
+#include "stdio.h"
+#define MAX_PRODUCTS 10
+#define BUFFER_SIZE 30
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+typedef struct {
+    char name[9];
+    int price;
+	int quantity;
+	int total_price;
+}Product;
+
+typedef struct {
+	int product_num;
+	Product p[MAX_PRODUCTS];
+	int cart_total_price;
+
+} Cart;
 
 /* USER CODE END PTD */
 
@@ -45,11 +61,10 @@ CRC_HandleTypeDef hcrc;
 
 DMA2D_HandleTypeDef hdma2d;
 
-LTDC_HandleTypeDef hltdc;
-
 QSPI_HandleTypeDef hqspi;
 
 UART_HandleTypeDef huart4;
+UART_HandleTypeDef huart3;
 UART_HandleTypeDef huart6;
 
 /* USER CODE BEGIN PV */
@@ -63,21 +78,18 @@ static void MX_DMA2D_Init(void);
 static void MX_QUADSPI_Init(void);
 static void MX_USART6_UART_Init(void);
 static void MX_CRC_Init(void);
-static void MX_LTDC_Init(void);
 static void MX_UART4_Init(void);
+static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
 static void LCD_Config(void);
-
+static void Draw_Line(void);
+static void add_product(Cart* cart, int n);
+static void convert_menu_string(Cart cart, uint8_t buffer[][BUFFER_SIZE]);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-typedef struct {
-	char name[9];
-	char price[9];
-	char quantity[3];
-	char total_price[7];
-} product;
+
 
 /* USER CODE END 0 */
 
@@ -88,6 +100,13 @@ typedef struct {
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+  // 다양한 타입의 변수들을 하나의 문자열로 저장하기 위한 버
+  uint8_t buffer[MAX_PRODUCTS][BUFFER_SIZE];
+  uint8_t total_price_buffer[BUFFER_SIZE];
+  // 구조체 초기
+  Cart cart;
+  cart.product_num = 0;
+  cart.cart_total_price = 0;
 
   /* USER CODE END 1 */
 
@@ -113,53 +132,49 @@ int main(void)
   MX_QUADSPI_Init();
   MX_USART6_UART_Init();
   MX_CRC_Init();
-  MX_LTDC_Init();
   MX_UART4_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  product p1 = {"product1", " 10000  ", " 1", "10000"};
-  product p2 = {"product2", " 20000  ", " 2", "40000"};
-  product p3 = {"product3", " 30000  ", " 3", "90000"};
-  product p4 = {"product4", " 40000  ", " 4", "160000"};
-
-   // 변수 값을 문자열로 변환
-   char buffer1[30];
-   sprintf(buffer1, " %s|%s|%s|%s", p1.name, p1.price, p1.quantity, p1.total_price);
-   char buffer2[30];
-   sprintf(buffer2, " %s|%s|%s|%s", p2.name, p2.price, p2.quantity, p2.total_price);
-   char buffer3[30];
-   sprintf(buffer3, " %s|%s|%s|%s", p3.name, p3.price, p3.quantity, p3.total_price);
-   char buffer4[30];
-   sprintf(buffer4, " %s|%s|%s|%s", p4.name, p4.price, p4.quantity, p4.total_price);
-
-  int i;
   LCD_Config();
   BSP_LCD_SetTextColor(LCD_COLOR_BLUE);
   BSP_LCD_SetBackColor(LCD_COLOR_WHITE);
-  BSP_LCD_DrawLine(10,10,470,10);
-  BSP_LCD_DisplayStringAt(0, 0, (uint8_t*)"SMART CART", CENTER_MODE);
 
-//  for(i=2; i<10; i+=2){
-//
-//	  BSP_LCD_DisplayStringAtLine(i, (uint8_t*) " Product1| BTN    |ade |UT!");
-//  }
 
-  BSP_LCD_DisplayStringAtLine(2, buffer1);
-  BSP_LCD_DisplayStringAtLine(4, buffer2);
-  BSP_LCD_DisplayStringAtLine(6, buffer3);
-  BSP_LCD_DisplayStringAtLine(8, buffer4);
-  BSP_LCD_DisplayStringAtLine(10, " Total Price :        300000");
-//  BSP_LCD_DisplayStringAtLine(i, buffer);
-  BSP_LCD_DrawLine(10,10,10,260);
-  BSP_LCD_DrawLine(470,10,470,260);
-  BSP_LCD_DrawLine(10,260,470,260);
 
+  // 구조체에 개로운 상품 추
+  for(int j=0; j<2; j++){
+	  add_product(&cart,j);
+  }
+
+  if (HAL_GPIO_ReadPin(GPIOG, GPIO_PIN_6) == GPIO_PIN_RESET){
+	  add_product(&cart, 2);
+  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+  int p = 0;
   while (1)
   {
+
+//	if(p == 2){
+//		add_product(&cart, 2);
+//	} else if(p == 5){
+//		add_product(&cart, 3);
+//	}
+//	HAL_Delay(50);
+	convert_menu_string(cart, buffer);
+	sprintf(total_price_buffer, " Total Price : %12d", cart.cart_total_price);
+
+	for (int k=0; k<cart.product_num; k++){
+		  BSP_LCD_DisplayStringAtLine(2*(k+1), buffer[k]);
+	  }
+	BSP_LCD_DisplayStringAtLine(10, total_price_buffer);
+	Draw_Line();
+	HAL_Delay(800);
+	p++;
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -289,88 +304,6 @@ static void MX_DMA2D_Init(void)
 }
 
 /**
-  * @brief LTDC Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_LTDC_Init(void)
-{
-
-  /* USER CODE BEGIN LTDC_Init 0 */
-
-  /* USER CODE END LTDC_Init 0 */
-
-  LTDC_LayerCfgTypeDef pLayerCfg = {0};
-  LTDC_LayerCfgTypeDef pLayerCfg1 = {0};
-
-  /* USER CODE BEGIN LTDC_Init 1 */
-
-  /* USER CODE END LTDC_Init 1 */
-  hltdc.Instance = LTDC;
-  hltdc.Init.HSPolarity = LTDC_HSPOLARITY_AL;
-  hltdc.Init.VSPolarity = LTDC_VSPOLARITY_AL;
-  hltdc.Init.DEPolarity = LTDC_DEPOLARITY_AL;
-  hltdc.Init.PCPolarity = LTDC_PCPOLARITY_IPC;
-  hltdc.Init.HorizontalSync = 7;
-  hltdc.Init.VerticalSync = 3;
-  hltdc.Init.AccumulatedHBP = 14;
-  hltdc.Init.AccumulatedVBP = 5;
-  hltdc.Init.AccumulatedActiveW = 654;
-  hltdc.Init.AccumulatedActiveH = 485;
-  hltdc.Init.TotalWidth = 660;
-  hltdc.Init.TotalHeigh = 487;
-  hltdc.Init.Backcolor.Blue = 0;
-  hltdc.Init.Backcolor.Green = 0;
-  hltdc.Init.Backcolor.Red = 0;
-  if (HAL_LTDC_Init(&hltdc) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  pLayerCfg.WindowX0 = 0;
-  pLayerCfg.WindowX1 = 0;
-  pLayerCfg.WindowY0 = 0;
-  pLayerCfg.WindowY1 = 0;
-  pLayerCfg.PixelFormat = LTDC_PIXEL_FORMAT_RGB565;
-  pLayerCfg.Alpha = 0;
-  pLayerCfg.Alpha0 = 0;
-  pLayerCfg.BlendingFactor1 = LTDC_BLENDING_FACTOR1_CA;
-  pLayerCfg.BlendingFactor2 = LTDC_BLENDING_FACTOR2_CA;
-  pLayerCfg.FBStartAdress = 0;
-  pLayerCfg.ImageWidth = 0;
-  pLayerCfg.ImageHeight = 0;
-  pLayerCfg.Backcolor.Blue = 0;
-  pLayerCfg.Backcolor.Green = 0;
-  pLayerCfg.Backcolor.Red = 0;
-  if (HAL_LTDC_ConfigLayer(&hltdc, &pLayerCfg, 0) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  pLayerCfg1.WindowX0 = 0;
-  pLayerCfg1.WindowX1 = 0;
-  pLayerCfg1.WindowY0 = 0;
-  pLayerCfg1.WindowY1 = 0;
-  pLayerCfg1.PixelFormat = LTDC_PIXEL_FORMAT_RGB565;
-  pLayerCfg1.Alpha = 0;
-  pLayerCfg1.Alpha0 = 0;
-  pLayerCfg1.BlendingFactor1 = LTDC_BLENDING_FACTOR1_CA;
-  pLayerCfg1.BlendingFactor2 = LTDC_BLENDING_FACTOR2_CA;
-  pLayerCfg1.FBStartAdress = 0;
-  pLayerCfg1.ImageWidth = 0;
-  pLayerCfg1.ImageHeight = 0;
-  pLayerCfg1.Backcolor.Blue = 0;
-  pLayerCfg1.Backcolor.Green = 0;
-  pLayerCfg1.Backcolor.Red = 0;
-  if (HAL_LTDC_ConfigLayer(&hltdc, &pLayerCfg1, 1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN LTDC_Init 2 */
-
-  /* USER CODE END LTDC_Init 2 */
-
-}
-
-/**
   * @brief QUADSPI Initialization Function
   * @param None
   * @retval None
@@ -441,6 +374,41 @@ static void MX_UART4_Init(void)
 }
 
 /**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART3_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 115200;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart3.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
+
+}
+
+/**
   * @brief USART6 Initialization Function
   * @param None
   * @retval None
@@ -482,18 +450,27 @@ static void MX_USART6_UART_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
 /* USER CODE BEGIN MX_GPIO_Init_1 */
 /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOG_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOI_CLK_ENABLE();
-  __HAL_RCC_GPIOK_CLK_ENABLE();
-  __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOG_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  /*Configure GPIO pin : Button_Pin */
+  GPIO_InitStruct.Pin = Button_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(Button_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -516,6 +493,38 @@ static void LCD_Config(void)
 
   /* Clear the Background Layer */
   BSP_LCD_Clear(LCD_COLOR_WHITE);
+}
+
+static void Draw_Line(void){
+
+	BSP_LCD_DrawLine(10,10,470,10);
+	BSP_LCD_DrawLine(10,10,10,265);
+	BSP_LCD_DrawLine(470,10,470,265);
+	BSP_LCD_DrawLine(10,265,470,265);
+	BSP_LCD_DisplayStringAt(0, 0, (uint8_t*)"SMART CART", CENTER_MODE);
+}
+
+static void add_product(Cart* cart, int n){
+	  cart->p[n] = (Product){.price = 10000*(n+1), .quantity = n+1};
+	  sprintf(cart->p[n].name, "product%d", n+1);
+	  cart->p[n].total_price = cart->p[n].price * cart->p[n].quantity;
+	  cart->product_num++;
+	  cart->cart_total_price += cart->p[n].total_price;
+  }
+
+static void convert_menu_string(Cart cart, uint8_t buffer[][BUFFER_SIZE]){
+	for(int j=0; j<cart.product_num; j++){
+
+		  sprintf(buffer[j], " %s|%d  |%2d|%6d", cart.p[j].name, cart.p[j].price, cart.p[j].quantity, cart.p[j].total_price);
+	  }
+}
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+    if(GPIO_Pin == 6) // If The INT Source Is EXTI Line9 (A9 Pin)
+    {
+    	BSP_LCD_SetBackColor(LCD_COLOR_RED);
+    // HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_8); // Toggle The Output (LED) Pin
+    }
 }
 
 /* USER CODE END 4 */
