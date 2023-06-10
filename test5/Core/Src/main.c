@@ -18,13 +18,10 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "stm32f7xx_hal_ltdc.h"
-#include "stm32f7508_discovery.h"
-#include "stm32f7508_discovery_lcd.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stm32f7508_discovery_lcd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -52,6 +49,7 @@ LTDC_HandleTypeDef hltdc;
 
 QSPI_HandleTypeDef hqspi;
 
+UART_HandleTypeDef huart4;
 UART_HandleTypeDef huart6;
 
 /* USER CODE BEGIN PV */
@@ -66,8 +64,9 @@ static void MX_QUADSPI_Init(void);
 static void MX_USART6_UART_Init(void);
 static void MX_CRC_Init(void);
 static void MX_LTDC_Init(void);
-static void LCD_Config(void);
+static void MX_UART4_Init(void);
 /* USER CODE BEGIN PFP */
+static void LCD_Config(void);
 
 /* USER CODE END PFP */
 
@@ -115,6 +114,7 @@ int main(void)
   MX_USART6_UART_Init();
   MX_CRC_Init();
   MX_LTDC_Init();
+  MX_UART4_Init();
   /* USER CODE BEGIN 2 */
 
   product p1 = {"product1", " 10000  ", " 1", "10000"};
@@ -171,24 +171,6 @@ int main(void)
   * @brief System Clock Configuration
   * @retval None
   */
-
-static void LCD_Config(void)
-{
-  /* LCD Initialization */
-  BSP_LCD_Init();
-
-  /* LCD Initialization */
-  BSP_LCD_LayerDefaultInit(0, LCD_FB_START_ADDRESS);
-
-  /* Enable the LCD */
-  BSP_LCD_DisplayOn();
-
-  /* Select the LCD Background Layer  */
-  BSP_LCD_SelectLayer(0);
-
-  /* Clear the Background Layer */
-  BSP_LCD_Clear(LCD_COLOR_WHITE);
-}
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -424,6 +406,41 @@ static void MX_QUADSPI_Init(void)
 }
 
 /**
+  * @brief UART4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_UART4_Init(void)
+{
+
+  /* USER CODE BEGIN UART4_Init 0 */
+
+  /* USER CODE END UART4_Init 0 */
+
+  /* USER CODE BEGIN UART4_Init 1 */
+
+  /* USER CODE END UART4_Init 1 */
+  huart4.Instance = UART4;
+  huart4.Init.BaudRate = 115200;
+  huart4.Init.WordLength = UART_WORDLENGTH_8B;
+  huart4.Init.StopBits = UART_STOPBITS_1;
+  huart4.Init.Parity = UART_PARITY_NONE;
+  huart4.Init.Mode = UART_MODE_TX_RX;
+  huart4.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart4.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart4.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart4.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN UART4_Init 2 */
+
+  /* USER CODE END UART4_Init 2 */
+
+}
+
+/**
   * @brief USART6 Initialization Function
   * @param None
   * @retval None
@@ -483,6 +500,23 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+static void LCD_Config(void)
+{
+  /* LCD Initialization */
+  BSP_LCD_Init();
+
+  /* LCD Initialization */
+  BSP_LCD_LayerDefaultInit(0, LCD_FB_START_ADDRESS);
+
+  /* Enable the LCD */
+  BSP_LCD_DisplayOn();
+
+  /* Select the LCD Background Layer  */
+  BSP_LCD_SelectLayer(0);
+
+  /* Clear the Background Layer */
+  BSP_LCD_Clear(LCD_COLOR_WHITE);
+}
 
 /* USER CODE END 4 */
 
