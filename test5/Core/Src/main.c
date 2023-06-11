@@ -89,7 +89,7 @@ static void convert_menu_string(Cart cart, uint8_t buffer[][BUFFER_SIZE]);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+Cart cart;
 
 /* USER CODE END 0 */
 
@@ -103,10 +103,12 @@ int main(void)
   // 다양한 타입의 변수들을 하나의 문자열로 저장하기 위한 버
   uint8_t buffer[MAX_PRODUCTS][BUFFER_SIZE];
   uint8_t total_price_buffer[BUFFER_SIZE];
+
+
   // 구조체 초기
-  Cart cart;
   cart.product_num = 0;
   cart.cart_total_price = 0;
+
 
   /* USER CODE END 1 */
 
@@ -146,25 +148,18 @@ int main(void)
   for(int j=0; j<2; j++){
 	  add_product(&cart,j);
   }
-
-  if (HAL_GPIO_ReadPin(GPIOG, GPIO_PIN_6) == GPIO_PIN_RESET){
-	  add_product(&cart, 2);
-  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  int p = 0;
+
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0); // EXTI0 인터럽트 우선순위 설정
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn); // EXTI0 인터럽트 활성화
   while (1)
   {
 
-//	if(p == 2){
-//		add_product(&cart, 2);
-//	} else if(p == 5){
-//		add_product(&cart, 3);
-//	}
-//	HAL_Delay(50);
+	HAL_Delay(50);
 	convert_menu_string(cart, buffer);
 	sprintf(total_price_buffer, " Total Price : %12d", cart.cart_total_price);
 
@@ -173,8 +168,8 @@ int main(void)
 	  }
 	BSP_LCD_DisplayStringAtLine(10, total_price_buffer);
 	Draw_Line();
-	HAL_Delay(800);
-	p++;
+	HAL_Delay(500);
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -186,6 +181,14 @@ int main(void)
   * @brief System Clock Configuration
   * @retval None
   */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+    if (GPIO_Pin == GPIO_PIN_6)
+    {
+//    	HAL_GPIO_TogglePin(GPIOG, GPIO_PIN_7);
+    	add_product(&cart, cart.product_num);
+    }
+}
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -462,11 +465,21 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
-  /*Configure GPIO pin : Button_Pin */
-  GPIO_InitStruct.Pin = Button_Pin;
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : LED_Pin */
+  GPIO_InitStruct.Pin = LED_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LED_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : BUTTON_Pin */
+  GPIO_InitStruct.Pin = BUTTON_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(Button_GPIO_Port, &GPIO_InitStruct);
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(BUTTON_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
@@ -517,14 +530,6 @@ static void convert_menu_string(Cart cart, uint8_t buffer[][BUFFER_SIZE]){
 
 		  sprintf(buffer[j], " %s|%d  |%2d|%6d", cart.p[j].name, cart.p[j].price, cart.p[j].quantity, cart.p[j].total_price);
 	  }
-}
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-    if(GPIO_Pin == 6) // If The INT Source Is EXTI Line9 (A9 Pin)
-    {
-    	BSP_LCD_SetBackColor(LCD_COLOR_RED);
-    // HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_8); // Toggle The Output (LED) Pin
-    }
 }
 
 /* USER CODE END 4 */
